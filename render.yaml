@@ -1,10 +1,13 @@
 services:
   - type: web
-    name: shl-assessment-api
-    env: python
+    name: shl-assessment-recommender
+    runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 10000
+    startCommand: >
+      python -m uvicorn backend.api.main:app
+      --host 0.0.0.0
+      --port $PORT
     envVars:
       - key: GOOGLE_API_KEY
         sync: false
