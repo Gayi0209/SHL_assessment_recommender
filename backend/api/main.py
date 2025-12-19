@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import traceback
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
@@ -9,9 +10,14 @@ from backend.rag.recommender import SHLRecommender
 
 app = FastAPI(title="SHL Assessment Recommendation API")
 
-recommender = None
+_recommender = None
 
-
+def get_recommender():
+    global _recommender
+    if _recommender is None:
+        print("Initializing SHLRecommender...")
+        _recommender = SHLRecommender()
+    return _recommender
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 10
@@ -20,10 +26,6 @@ class QueryRequest(BaseModel):
 class AssessmentResponse(BaseModel):
     url: str
     name: str
-    adaptive_support: str
-    description: str
-    duration: int
-    remote_support: str
     test_type: List[str]
 
 
@@ -34,30 +36,44 @@ def health():
 
 @app.post("/recommend")
 def recommend(req: QueryRequest):
-    global recommender
+    try:
+        recommender = get_recommender()
 
-    if recommender is None:
-        recommender = SHLRecommender()
+        results = recommender.recommend(
+            req.query,
+            top_k=req.top_k,
+            use_llm=False  
+        )
 
-    results = recommender.recommend(
-        req.query,
-        top_k=10,
-        use_llm=True     # ✅ LLM USED
-    )
+        return [
+            {
+                "url": r.get("url"),
+                "name": r.get("name"),
+                "test_type": r.get("test_types_full", [])
+            }
+            for r in results
+        ]
 
-    return [{"url": r["url"], "name": r["name"], "test_type": r["test_types_full"]} for r in results]
+    except Exception as e:
+        print("ERROR in /recommend")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/recommend_eval")
 def recommend_eval(req: QueryRequest):
-    global recommender
+    try:
+        recommender = get_recommender()
 
-    if recommender is None:
-        recommender = SHLRecommender()
+        results = recommender.recommend(
+            req.query,
+            top_k=req.top_k,
+            use_llm=False
+        )
 
-    results = recommender.recommend(
-        req.query,
-        top_k=10,
-        use_llm=False    # ❌ LLM DISABLED
-    )
+        return [{"url": r.get("url")} for r in results]
 
-    return [{"url": r["url"]} for r in results]
+    except Exception as e:
+        print("ERROR in /recommend_eval")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
