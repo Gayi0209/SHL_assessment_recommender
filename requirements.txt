@@ -19,3 +19,4 @@ faiss-cpu
 google-generativeai
 
 streamlit
+google.genai
