@@ -8,17 +8,36 @@ from typing import List
 
 app = FastAPI(title="SHL Assessment Recommendation API")
 
-_recommender = None
+# -------------------------------------------------
+# ROOT ENDPOINT (RENDER HEALTH CHECK NEEDS THIS)
+# -------------------------------------------------
+@app.get("/")
+def root():
+    return {"status": "ok"}
 
+# -------------------------------------------------
+# HEALTH CHECK
+# -------------------------------------------------
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+# -------------------------------------------------
+# LAZY-LOADED RECOMMENDER
+# -------------------------------------------------
+_recommender = None
 
 def get_recommender():
     global _recommender
     if _recommender is None:
         print("Initializing SHLRecommender...")
-        from backend.rag.recommender import SHLRecommender  
+        from backend.rag.recommender import SHLRecommender
         _recommender = SHLRecommender()
     return _recommender
 
+# -------------------------------------------------
+# REQUEST / RESPONSE MODELS
+# -------------------------------------------------
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 10
@@ -32,20 +51,18 @@ class AssessmentResponse(BaseModel):
     duration: int
     remote_support: str
     test_type: List[str]
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
 
-
+# -------------------------------------------------
+# RECOMMEND ENDPOINT (LLM ENABLED)
+# -------------------------------------------------
 @app.post("/recommend", response_model=List[AssessmentResponse])
 def recommend(req: QueryRequest):
     try:
         recommender = get_recommender()
-
         results = recommender.recommend(
             req.query,
             top_k=req.top_k,
-            use_llm=True 
+            use_llm=True
         )
 
         return [
@@ -65,18 +82,18 @@ def recommend(req: QueryRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-
+# -------------------------------------------------
+# EVALUATION ENDPOINT (LLM DISABLED)
+# -------------------------------------------------
 @app.post("/recommend_eval")
 def recommend_eval(req: QueryRequest):
     try:
         recommender = get_recommender()
-
         results = recommender.recommend(
             req.query,
             top_k=req.top_k,
-            use_llm=False 
+            use_llm=False
         )
-
         return [{"url": r.get("url")} for r in results]
 
     except Exception as e:
