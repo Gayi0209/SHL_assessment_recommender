@@ -1,22 +1,11 @@
 fastapi
 uvicorn
-
-pydantic
 python-dotenv
+pydantic
 
-requests
-beautifulsoup4
-lxml
-tqdm
-
-pandas
 numpy
-scikit-learn
-
-sentence-transformers
 faiss-cpu
+sentence-transformers
+torch
 
 google-generativeai
-
-streamlit
-google.genai
