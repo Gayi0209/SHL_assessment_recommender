@@ -7,5 +7,5 @@ numpy
 faiss-cpu
 sentence-transformers
 torch
-
+ 
 google-generativeai
