@@ -1,13 +1,6 @@
 import faiss
 import pickle
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
-
-try:
-    from backend.llm.query_parser import parse_query
-except Exception:
-    parse_query = None
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 INDEX_PATH = BASE_DIR / "vector_db" / "faiss.index"
@@ -16,30 +9,64 @@ META_PATH = BASE_DIR / "vector_db" / "metadata.pkl"
 
 class SHLRecommender:
     def __init__(self):
-        print("Loading embedding model...")
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        # Nothing heavy is loaded here
+        self.model = None
+        self.index = None
+        self.metadata = None
+        self.parse_query = None
 
-        print("Loading FAISS index...")
-        self.index = faiss.read_index(str(INDEX_PATH))
+    # -------------------------------------------------
+    # LAZY LOADERS (CRITICAL FOR RENDER)
+    # -------------------------------------------------
+    def _load_model(self):
+        if self.model is None:
+            print("Loading embedding model...")
+            from sentence_transformers import SentenceTransformer
+            self.model = SentenceTransformer("all-MiniLM-L6-v2")
 
-        print("Loading metadata...")
-        with open(META_PATH, "rb") as f:
-            self.metadata = pickle.load(f)
+    def _load_index(self):
+        if self.index is None:
+            print("Loading FAISS index...")
+            self.index = faiss.read_index(str(INDEX_PATH))
 
-        print(f"Loaded {len(self.metadata)} metadata entries")
+    def _load_metadata(self):
+        if self.metadata is None:
+            print("Loading metadata...")
+            with open(META_PATH, "rb") as f:
+                self.metadata = pickle.load(f)
+            print(f"Loaded {len(self.metadata)} metadata entries")
 
-    def recommend(self, query: str, top_k=10, use_llm=False):
-        intent = "mixed"
-        if use_llm and parse_query is not None:
+    def _load_llm(self):
+        if self.parse_query is None:
             try:
-                intent_data = parse_query(query)
-                intent = intent_data.get("intent", "mixed")
+                from backend.llm.query_parser import parse_query
+                self.parse_query = parse_query
             except Exception:
-                intent = "mixed"
+                self.parse_query = None
+
+    # -------------------------------------------------
+    # RECOMMENDATION LOGIC
+    # -------------------------------------------------
+    def recommend(self, query: str, top_k=10, use_llm=False):
+        # Lazy load everything
+        self._load_model()
+        self._load_index()
+        self._load_metadata()
+
+        intent = "mixed"
+        if use_llm:
+            self._load_llm()
+            if self.parse_query:
+                try:
+                    intent_data = self.parse_query(query)
+                    intent = intent_data.get("intent", "mixed")
+                except Exception:
+                    intent = "mixed"
+
         query_vec = self.model.encode([query]).astype("float32")
         faiss.normalize_L2(query_vec)
 
-        scores, indices = self.index.search(query_vec, top_k * 5)
+        _, indices = self.index.search(query_vec, top_k * 5)
 
         candidates = []
         for i in indices[0]:
@@ -53,11 +80,11 @@ class SHLRecommender:
 
             if isinstance(raw, str):
                 raw = raw.strip("[]")
-                types = set(
+                types = {
                     t.strip().strip("'").strip('"')
                     for t in raw.split(",")
                     if t.strip()
-                )
+                }
             else:
                 types = set(raw or [])
 
@@ -65,6 +92,7 @@ class SHLRecommender:
                 technical.append(c)
             elif any(t in types for t in ["P", "C", "B"]):
                 behavioral.append(c)
+
         if intent == "technical":
             return technical[:top_k]
 
