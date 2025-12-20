@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import requests
 
 API_URL = "https://YOUR-BACKEND.onrender.com/recommend"
@@ -29,3 +29,4 @@ if st.button("Recommend"):
                 st.divider()
         else:
             st.error("Backend error")
+
