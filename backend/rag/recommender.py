@@ -5,7 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 INDEX_PATH = BASE_DIR / "vector_db" / "faiss.index"
 META_PATH = BASE_DIR / "vector_db" / "metadata.pkl"
-
+ 
 
 class SHLRecommender:
     def __init__(self):
@@ -101,3 +101,4 @@ class SHLRecommender:
 
         half = top_k // 2
         return (technical[:half] + behavioral[:top_k - half])[:top_k]
+
